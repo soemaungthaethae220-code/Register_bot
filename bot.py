@@ -4,18 +4,33 @@ import requests
 
 TOKEN = "8927826902:AAEi7UQgdBc4gWRIshDtLjRm6Hych15sAF4"
 ADMIN_CHAT_ID = "6395918397"
+CHANNEL_USERNAME = "@YMBA_MOD_SHAIRING"
+CHANNEL_LINK = "https://t.me/YMBA_MOD_SHAIRING"
 BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
-def send_message(chat_id, text):
+def send_message(chat_id, text, reply_markup=None, parse_mode=None):
     url = f"{BASE_URL}/sendMessage"
     payload = {"chat_id": chat_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
     requests.post(url, json=payload)
 
+def check_user_in_channel(user_id):
+    url = f"{BASE_URL}/getChatMember"
+    payload = {"chat_id": CHANNEL_USERNAME, "user_id": user_id}
+    response = requests.get(url, params=payload)
+    data = response.json()
+    if data.get("ok"):
+        status = data["result"].get("status")
+        if status in ["creator", "administrator", "member"]:
+            return True
+    return False
+
 def main():
-    print("Bot started with direct API polling...")
+    print("Bot started with Burmese styled messages...")
     offset = 0
-    
-    # Webhook များကို အရင်ရှင်းထုတ်မည်
     requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
     while True:
@@ -33,16 +48,36 @@ def main():
                         user_id = message["from"]["id"]
                         
                         if text.startswith("/start"):
+                            if str(user_id) != str(ADMIN_CHAT_ID):
+                                is_member = check_user_in_channel(user_id)
+                                if not is_member:
+                                    warning_text = (
+                                        ">⚠️ **ဝင်ရောက်ခွင့် မရှိသေးပါ!**\n\n"
+                                        ">🚀 ဒီ Bot ကို အသုံးမပြုမီ ကျွန်ုပ်တို့၏ Channel သို့ ဦးစွာ Join ပေးပါရန် မေတ္တာရပ်ခံအပ်ပါတယ်:"
+                                    )
+                                    keyboard = {
+                                        "inline_keyboard": [
+                                            [{"text": "📢 ချန်နယ်သို့ ဝင်မည် (VIEW CHANNEL)", "url": CHANNEL_LINK}]
+                                        ]
+                                    }
+                                    send_message(user_id, warning_text, reply_markup=keyboard, parse_mode="Markdown")
+                                    continue
+                            
                             parts = text.split(" ")
                             device_id = parts[1] if len(parts) > 1 else "Not Provided"
                             
-                            # Admin ဆီသို့ Device ID ပို့မည်
-                            admin_msg = f"New Device Registration:\nUser ID: {user_id}\nDevice ID: {device_id}"
-                            send_message(ADMIN_CHAT_ID, admin_msg)
+                            admin_msg = (
+                                ">🔔 **စက်ပစ္စည်း အသစ် မှတ်ပုံတင်ခြင်း:**\n"
+                                f">👤 အသုံးပြုသူ ID: `{user_id}`\n"
+                                f">📱 စက်ပစ္စည်း ID: `{device_id}`"
+                            )
+                            send_message(ADMIN_CHAT_ID, admin_msg, parse_mode="Markdown")
                             
-                            # User ထံသို့ အောင်မြင်ကြောင်း ပြန်ပို့မည်
-                            reply_msg = f"Your Device ID ({device_id}) has been registered successfully!"
-                            send_message(user_id, reply_msg)
+                            reply_msg = (
+                                ">✅ **အောင်မြင်ပါသည်!**\n"
+                                f">သင့်ရဲ့ Device ID (`{device_id}`) ကို စနစ်အတွင်း အောင်မြင်စွာ မှတ်ပုံတင်ပြီးပါပြီ။"
+                            )
+                            send_message(user_id, reply_msg, parse_mode="Markdown")
                             
         except Exception as e:
             print(f"Error: {e}")
