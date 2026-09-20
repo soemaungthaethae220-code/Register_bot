@@ -1,5 +1,5 @@
 import os
-import asyncio
+import requests
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -13,15 +13,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     device_id = args[0] if args else "Not Provided"
     
+    # Admin ဆီသို့ Device ID ပို့မည်
     message = f"New Device Registration:\nUser ID: {user_id}\nDevice ID: {device_id}"
     await update.get_bot().send_message(chat_id=ADMIN_CHAT_ID, text=message)
-    await update.message.reply_text("Your Device ID has been registered successfully!")
+    
+    # အသုံးပြုသူထံသို့ အောင်မြင်ကြောင်း ပြန်စာပို့မည်
+    await update.message.reply_text(f"Your Device ID ({device_id}) has been registered successfully!")
 
 ptb.add_handler(CommandHandler("start", start))
 
 if __name__ == "__main__":
-    import requests
-    # Webhook ပိတ်ပြီး Polling စနစ်ကို တိုက်ရိုက်စတင်မည်
+    # Webhook များကို ရှင်းထုတ်ပြီး Polling ဖြင့် တိုက်ရိုက် run မည်
     requests.get(f"https://api.telegram.org/bot{TOKEN}/deleteWebhook?drop_pending_updates=true")
     
     print("Starting bot in polling mode...")
