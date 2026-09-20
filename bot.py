@@ -6,11 +6,8 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 
 TOKEN = "8927826902:AAEi7UQgdBc4gWRIshDtLjRm6Hych15sAF4"
 ADMIN_CHAT_ID = "6395918397"
-CHANNEL_USERNAME = "@YMBA_MOD_SHAIRING"
-CHANNEL_LINK = "https://t.me/YMBA_MOD_SHAIRING"
 BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
-# Render Free Tier အတွက် Port ဖွင့်ပေးမည့် mini web server
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -30,24 +27,14 @@ def send_message(chat_id, text, reply_markup=None, parse_mode=None):
         payload["reply_markup"] = reply_markup
     if parse_mode:
         payload["parse_mode"] = parse_mode
-    requests.post(url, json=payload)
-
-def check_user_in_channel(user_id):
-    url = f"{BASE_URL}/getChatMember"
-    payload = {"chat_id": CHANNEL_USERNAME, "user_id": user_id}
-    response = requests.get(url, params=payload)
-    data = response.json()
-    if data.get("ok"):
-        status = data["result"].get("status")
-        if status in ["creator", "administrator", "member"]:
-            return True
-    return False
+    response = requests.post(url, json=payload)
+    return response.json()
 
 def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    print("Bot started with Validation & Free Tier support...")
+    print("Bot started with Admin Approval & 24h waiting system...")
     offset = 0
     requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
@@ -60,65 +47,80 @@ def main():
                 for result in data.get("result", []):
                     offset = result["update_id"] + 1
                     
+                    # 1. Callback Query (Admin က Button နှိပ်လိုက်တဲ့အခါ)
+                    if "callback_query" in result:
+                        callback = result["callback_query"]
+                        callback_id = callback["id"]
+                        cb_data = callback["data"]
+                        user_chat_id = cb_data.replace("approve_", "")
+                        
+                        # User ဆီကို အတည်ပြုပြီးကြောင်း စာပို့မည်
+                        success_msg = (
+                            ">✅ **အတည်ပြုပြီးပါပြီ!**\n"
+                            ">သင်၏ Device ID ကို Admin မှ စစ်ဆေးအတည်ပြုပြီးဖြစ်၍ အောင်မြင်စွာ အသုံးပြုနိုင်ပါပြီ။"
+                        )
+                        send_message(user_chat_id, success_msg, parse_mode="Markdown")
+                        
+                        # Admin ရဲ့ Message ကို Button ဖြုတ်ပြီး အဆင်ပြေကြောင်း ပြောင်းမည်
+                        requests.post(f"{BASE_URL}/answerCallbackQuery", json={
+                            "callback_query_id": callback_id,
+                            "text": "User ကို အတည်ပြုချက် ပို့ပြီးပါပြီ!"
+                        })
+                        continue
+
+                    # 2. Normal Message (User ဘက်က ပို့လာတဲ့အခါ)
                     message = result.get("message")
                     if message and "text" in message:
                         text = message["text"]
                         user_id = message["from"]["id"]
                         
                         if text.startswith("/start"):
-                            # ၁။ ချန်နယ် ဝင်ထားခြင်း ရှိမရှိ စစ်ဆေးမည် (Admin မပါ)
-                            if str(user_id) != str(ADMIN_CHAT_ID):
-                                is_member = check_user_in_channel(user_id)
-                                if not is_member:
-                                    warning_text = (
-                                        ">⚠️ **ဝင်ရောက်ခွင့် မရှိသေးပါ!**\n\n"
-                                        ">🚀 ဒီ Bot ကို အသုံးမပြုမီ ကျွန်ုပ်တို့၏ Channel သို့ ဦးစွာ Join ပေးပါရန် မေတ္တာရပ်ခံအပ်ပါတယ်:"
-                                    )
-                                    keyboard = {
-                                        "inline_keyboard": [
-                                            [{"text": "📢 ချန်နယ်သို့ ဝင်မည် (VIEW CHANNEL)", "url": CHANNEL_LINK}]
-                                        ]
-                                    }
-                                    send_message(user_id, warning_text, reply_markup=keyboard, parse_mode="Markdown")
-                                    continue
-                            
-                            # ၂။ Device ID ပါလာခြင်း ရှိမရှိ စစ်ဆေးမည်
                             parts = text.split(" ")
                             if len(parts) < 2 or not parts[1].strip():
                                 missing_msg = (
                                     ">⚠️ **စက်ပစ္စည်း ID လိုအပ်နေပါသည်!**\n\n"
                                     ">❌ ကျေးဇူးပြု၍ Device ID ထည့်သွင်းပြီးမှ ပြန်လည် ပို့ပေးပါ။\n"
-                                    ">💡 **ပုံစံမှန်:** `/start [သင့်ရဲ့ Device ID]`\n"
-                                    ">📌 **ဥပမာ:** `/start 123456`"
+                                    ">💡 **ပုံစံမှန်:** `/start [သင့်ရဲ့ Device ID]`"
                                 )
                                 send_message(user_id, missing_msg, parse_mode="Markdown")
                                 continue
                             
                             device_id = parts[1].strip()
                             
-                            # ၃။ Device ID တိုလွန်းပါက (ဥပမာ ၃ လုံးအောက်) မှားယွင်းကြောင်း ပြမည်
                             if len(device_id) < 3:
                                 invalid_msg = (
                                     ">⚠️ **Device ID မမှန်ကန်ပါ!**\n\n"
-                                    ">❌ ထည့်သွင်းလိုက်သော Device ID မှာ တိုလွန်းနေပါသည် သို့မဟုတ် ပုံစံမမှန်ပါ။\n"
-                                    ">💡 ကျေးဇူးပြု၍ မှန်ကန်သော Device ID ဖြင့် ပြန်လည်ကြိုးစားပါ။"
+                                    ">❌ ထည့်သွင်းလိုက်သော Device ID မှာ တိုလွန်းနေပါသည် သို့မဟုတ် ပုံစံမမှန်ပါ။"
                                 )
                                 send_message(user_id, invalid_msg, parse_mode="Markdown")
                                 continue
                             
-                            # ၄။ အရာရာ မှန်ကန်ပါက Admin ဆီသို့ ပို့မည် & User ဆီသို့ အောင်မြင်ကြောင်း အကြောင်းကြားမည်
-                            admin_msg = (
-                                ">🔔 **စက်ပစ္စည်း အသစ် မှတ်ပုံတင်ခြင်း:**\n"
-                                f">👤 အသုံးပြုသူ ID: `{user_id}`\n"
-                                f">📱 စက်ပစ္စည်း ID: `{device_id}`"
+                            # User ကို 24 hours waiting လို့ စာပို့မည်
+                            waiting_msg = (
+                                ">⏳ **24 Hour Waiting...**\n\n"
+                                f">📱 သင်ပေးပို့ထားသော Device ID (`{device_id}`) ကို လက်ခံရရှိပါပြီ။\n"
+                                ">🛠️ Admin မှ စစ်ဆေးအတည်ပြုနေပါပြီ၊ ခဏစောင့်ဆိုင်းပေးပါ။"
                             )
-                            send_message(ADMIN_CHAT_ID, admin_msg, parse_mode="Markdown")
+                            send_message(user_id, waiting_msg, parse_mode="Markdown")
                             
-                            reply_msg = (
-                                ">✅ **အောင်မြင်ပါသည်!**\n"
-                                f">သင့်ရဲ့ Device ID (`{device_id}`) ကို စနစ်အတွင်း အောင်မြင်စွာ မှတ်ပုံတင်ပြီးပါပြီ။"
+                            # Admin ဆီကို Button နဲ့တကွ ပို့မည်
+                            admin_msg = (
+                                ">🔔 **Device ID အတည်ပြုရန် တောင်းဆိုမှု:**\n"
+                                f">👤 User ID: `{user_id}`\n"
+                                f">📱 Device ID: `{device_id}`\n\n"
+                                ">အောက်ပါခလုတ်ကိုနှိပ်၍ အတည်ပြုပေးပါ 👇"
                             )
-                            send_message(user_id, reply_msg, parse_mode="Markdown")
+                            keyboard = {
+                                "inline_keyboard": [
+                                    [
+                                        {
+                                            "text": "✅ Device ID အတည်ပြုမည်",
+                                            "callback_data": f"approve_{user_id}"
+                                        }
+                                    ]
+                                ]
+                            }
+                            send_message(ADMIN_CHAT_ID, admin_msg, reply_markup=keyboard, parse_mode="Markdown")
                             
         except Exception as e:
             print(f"Error: {e}")
