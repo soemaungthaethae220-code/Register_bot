@@ -10,7 +10,6 @@ ADMIN_CHAT_ID = 6395918397
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
 
-# Telegram Application တည်ဆောက်ခြင်း
 ptb = Application.builder().token(TOKEN).updater(None).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -18,11 +17,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     args = context.args
     device_id = args[0] if args else "Not Provided"
     
-    # Admin ဆီကို Device ID ပို့မည်
     message = f"New Device Registration:\nUser ID: {user_id}\nDevice ID: {device_id}"
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
-    
-    #  ಬಳಕೆသူ ဆီကို ပြန်စာပို့မည်
     await update.message.reply_text("Your Device ID has been registered successfully!")
 
 ptb.add_handler(CommandHandler("start", start))
@@ -39,6 +35,11 @@ def index():
     return "Bot is running nicely!", 200
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
     loop.run_until_complete(ptb.initialize())
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
