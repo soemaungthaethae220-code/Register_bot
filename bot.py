@@ -1,12 +1,27 @@
 import os
 import time
+import threading
 import requests
+from http.server import HTTPServer, BaseHTTPRequestHandler
 
 TOKEN = "8927826902:AAEi7UQgdBc4gWRIshDtLjRm6Hych15sAF4"
 ADMIN_CHAT_ID = "6395918397"
 CHANNEL_USERNAME = "@YMBA_MOD_SHAIRING"
 CHANNEL_LINK = "https://t.me/YMBA_MOD_SHAIRING"
 BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
+
+# Render Free Tier အတွက် Port ဖွင့်ပေးမည့် mini web server
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is active and running!")
+
+def run_web_server():
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    print(f"Web server running on port {port}")
+    server.serve_forever()
 
 def send_message(chat_id, text, reply_markup=None, parse_mode=None):
     url = f"{BASE_URL}/sendMessage"
@@ -29,7 +44,11 @@ def check_user_in_channel(user_id):
     return False
 
 def main():
-    print("Bot started with Burmese styled messages...")
+    # Web server ကို background မှာ အလုပ်လုပ်ခိုင်းမည် (Port error မတက်အောင်)
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
+
+    print("Bot started with Free Tier Web Service support...")
     offset = 0
     requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
