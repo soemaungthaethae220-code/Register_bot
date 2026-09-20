@@ -1,11 +1,13 @@
 import os
 import asyncio
+import requests
 from flask import Flask, request
 from telegram import Bot, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 TOKEN = "8927826902:AAEi7UQgdBc4gWRIshDtLjRm6Hych15sAF4"
 ADMIN_CHAT_ID = 6395918397
+RENDER_URL = "https://register-bot-zw9q.onrender.com"
 
 app = Flask(__name__)
 bot = Bot(token=TOKEN)
@@ -42,4 +44,9 @@ if __name__ == "__main__":
         asyncio.set_event_loop(loop)
         
     loop.run_until_complete(ptb.initialize())
+    
+    # ဆာဗာစတארတ်တာနဲ့ Webhook ကို အလိုအလျောက် သွားချိတ်ပေးမယ့် ပုံစံ
+    webhook_url = f"{RENDER_URL}/{TOKEN}"
+    requests.get(f"https://api.telegram.org/bot{TOKEN}/setWebhook?url={webhook_url}")
+    
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
