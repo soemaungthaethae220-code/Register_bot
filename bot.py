@@ -44,11 +44,10 @@ def check_user_in_channel(user_id):
     return False
 
 def main():
-    # Web server ကို background မှာ အလုပ်လုပ်ခိုင်းမည် (Port error မတက်အောင်)
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    print("Bot started with Free Tier Web Service support...")
+    print("Bot started with Validation & Free Tier support...")
     offset = 0
     requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
@@ -67,6 +66,7 @@ def main():
                         user_id = message["from"]["id"]
                         
                         if text.startswith("/start"):
+                            # ၁။ ချန်နယ် ဝင်ထားခြင်း ရှိမရှိ စစ်ဆေးမည် (Admin မပါ)
                             if str(user_id) != str(ADMIN_CHAT_ID):
                                 is_member = check_user_in_channel(user_id)
                                 if not is_member:
@@ -82,9 +82,31 @@ def main():
                                     send_message(user_id, warning_text, reply_markup=keyboard, parse_mode="Markdown")
                                     continue
                             
+                            # ၂။ Device ID ပါလာခြင်း ရှိမရှိ စစ်ဆေးမည်
                             parts = text.split(" ")
-                            device_id = parts[1] if len(parts) > 1 else "Not Provided"
+                            if len(parts) < 2 or not parts[1].strip():
+                                missing_msg = (
+                                    ">⚠️ **စက်ပစ္စည်း ID လိုအပ်နေပါသည်!**\n\n"
+                                    ">❌ ကျေးဇူးပြု၍ Device ID ထည့်သွင်းပြီးမှ ပြန်လည် ပို့ပေးပါ။\n"
+                                    ">💡 **ပုံစံမှန်:** `/start [သင့်ရဲ့ Device ID]`\n"
+                                    ">📌 **ဥပမာ:** `/start 123456`"
+                                )
+                                send_message(user_id, missing_msg, parse_mode="Markdown")
+                                continue
                             
+                            device_id = parts[1].strip()
+                            
+                            # ၃။ Device ID တိုလွန်းပါက (ဥပမာ ၃ လုံးအောက်) မှားယွင်းကြောင်း ပြမည်
+                            if len(device_id) < 3:
+                                invalid_msg = (
+                                    ">⚠️ **Device ID မမှန်ကန်ပါ!**\n\n"
+                                    ">❌ ထည့်သွင်းလိုက်သော Device ID မှာ တိုလွန်းနေပါသည် သို့မဟုတ် ပုံစံမမှန်ပါ။\n"
+                                    ">💡 ကျေးဇူးပြု၍ မှန်ကန်သော Device ID ဖြင့် ပြန်လည်ကြိုးစားပါ။"
+                                )
+                                send_message(user_id, invalid_msg, parse_mode="Markdown")
+                                continue
+                            
+                            # ၄။ အရာရာ မှန်ကန်ပါက Admin ဆီသို့ ပို့မည် & User ဆီသို့ အောင်မြင်ကြောင်း အကြောင်းကြားမည်
                             admin_msg = (
                                 ">🔔 **စက်ပစ္စည်း အသစ် မှတ်ပုံတင်ခြင်း:**\n"
                                 f">👤 အသုံးပြုသူ ID: `{user_id}`\n"
