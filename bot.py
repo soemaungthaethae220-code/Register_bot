@@ -34,10 +34,10 @@ def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    print("Bot started with clean Admin Approval system...")
-    offset = 0
+    print("Bot started with fixed direct messaging to user...")
     requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
+    offset = 0
     while True:
         try:
             response = requests.get(f"{BASE_URL}/getUpdates", params={"offset": offset, "timeout": 30})
@@ -52,21 +52,36 @@ def main():
                         callback = result["callback_query"]
                         callback_id = callback["id"]
                         cb_data = callback["data"]
+                        message_obj = callback.get("message", {})
+                        message_id = message_obj.get("message_id")
+                        admin_chat_id = message_obj.get("chat", {}).get("id")
                         
                         if cb_data.startswith("approve_"):
-                            user_chat_id = cb_data.replace("approve_", "")
+                            # callback data ထဲကနေ User ID ကို သေချာ ထုတ်ယူမည်
+                            user_chat_id = cb_data.split("_")[1]
+                            device_id = cb_data.split("_")[2] if len(cb_data.split("_")) > 2 else ""
                             
-                            # User ဆီကို အတည်ပြုပြီးကြောင်း စာပို့မည်
+                            # User ဆီသို့ တိုက်ရိုက် စာပို့မည်
                             success_msg = (
                                 ">✅ **အတည်ပြုပြီးပါပြီ!**\n"
-                                ">သင့်ရဲ့ Device ID ကို Admin မှ စစ်ဆေးအတည်ပြုပြီးဖြစ်၍ အောင်မြင်စွာ အသုံးပြုနိုင်ပါပြီ။"
+                                f">သင့်ရဲ့ Device ID (`{device_id}`) ကို Admin မှ စစ်ဆေးအတည်ပြုပြီးဖြစ်၍ အောင်မြင်စွာ အသုံးပြုနိုင်ပါပြီ။"
                             )
-                            send_message(user_chat_id, success_msg, parse_mode="Markdown")
+                            res = send_message(user_chat_id, success_msg, parse_mode="Markdown")
+                            print(f"Send message to user response: {res}")
                             
-                            # Admin ကို အသိပေးရန်
+                            # Admin ဘက်က ခလုတ်ကို ဖယ်ရှားပြီး အတည်ပြုပြီးကြောင်း ပြောင်းမည်
+                            if admin_chat_id and message_id:
+                                edited_text = message_obj.get("text", "") + "\n\n>✨ **[STATUS: APPROVED & COMPLETED]**"
+                                requests.post(f"{BASE_URL}/editMessageText", json={
+                                    "chat_id": admin_chat_id,
+                                    "message_id": message_id,
+                                    "text": edited_text,
+                                    "parse_mode": "Markdown"
+                                })
+                            
                             requests.post(f"{BASE_URL}/answerCallbackQuery", json={
                                 "callback_query_id": callback_id,
-                                "text": "✅ User ကို အတည်ပြုစာ ပို့ပြီးပါပြီ!"
+                                "text": "✅ User ဆီသို့ အတည်ပြုစာ ပို့ပြီးပါပြီ!"
                             })
                         continue
 
@@ -105,7 +120,7 @@ def main():
                             )
                             send_message(user_id, waiting_msg, parse_mode="Markdown")
                             
-                            # Admin ဆီသို့ Button နဲ့တကွ ပို့မည်
+                            # Admin ဆီသို့ Button နဲ့တကွ ပို့မည် (callback_data ထဲမှာ user_id ရော device_id ရော ထည့်ပေးမည်)
                             admin_msg = (
                                 ">🔔 **Device ID အတည်ပြုရန် တောင်းဆိုမှု:**\n"
                                 f">👤 User ID: `{user_id}`\n"
@@ -117,7 +132,7 @@ def main():
                                     [
                                         {
                                             "text": "✅ Device ID အတည်ပြုမည်",
-                                            "callback_data": f"approve_{user_id}"
+                                            "callback_data": f"approve_{user_id}_{device_id}"
                                         }
                                     ]
                                 ]
