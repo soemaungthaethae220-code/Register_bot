@@ -1,27 +1,52 @@
 import os
-import logging
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+import time
+import requests
 
 TOKEN = "8927826902:AAEi7UQgdBc4gWRIshDtLjRm6Hych15sAF4"
-ADMIN_CHAT_ID = 6395918397
+ADMIN_CHAT_ID = "6395918397"
+BASE_URL = f"https://api.telegram.org/bot{TOKEN}"
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    args = context.args
-    device_id = args[0] if args else "Not Provided"
-    
-    message = f"New Device Registration:\nUser ID: {user_id}\nDevice ID: {device_id}"
-    await context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
-    await update.message.reply_text(f"Your Device ID ({device_id}) has been registered successfully!")
+def send_message(chat_id, text):
+    url = f"{BASE_URL}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text}
+    requests.post(url, json=payload)
 
-if __name__ == '__main__':
-    # python-telegram-bot v20.7 အတွက် အတည်ငြိမ်ဆုံး တည်ဆောက်ပုံ
-    application = Application.builder().token(TOKEN).build()
+def main():
+    print("Bot started with direct API polling...")
+    offset = 0
     
-    application.add_handler(CommandHandler("start", start))
+    # Webhook များကို အရင်ရှင်းထုတ်မည်
+    requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
-    print("Bot is starting polling...")
-    application.run_polling(drop_pending_updates=True)
+    while True:
+        try:
+            response = requests.get(f"{BASE_URL}/getUpdates", params={"offset": offset, "timeout": 30})
+            data = response.json()
+            
+            if data.get("ok"):
+                for result in data.get("result", []):
+                    offset = result["update_id"] + 1
+                    
+                    message = result.get("message")
+                    if message and "text" in message:
+                        text = message["text"]
+                        user_id = message["from"]["id"]
+                        
+                        if text.startswith("/start"):
+                            parts = text.split(" ")
+                            device_id = parts[1] if len(parts) > 1 else "Not Provided"
+                            
+                            # Admin ဆီသို့ Device ID ပို့မည်
+                            admin_msg = f"New Device Registration:\nUser ID: {user_id}\nDevice ID: {device_id}"
+                            send_message(ADMIN_CHAT_ID, admin_msg)
+                            
+                            # User ထံသို့ အောင်မြင်ကြောင်း ပြန်ပို့မည်
+                            reply_msg = f"Your Device ID ({device_id}) has been registered successfully!"
+                            send_message(user_id, reply_msg)
+                            
+        except Exception as e:
+            print(f"Error: {e}")
+            time.sleep(5)
+
+if __name__ == "__main__":
+    main()
