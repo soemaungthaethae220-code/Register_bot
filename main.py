@@ -1,53 +1,44 @@
 import os
 import asyncio
-import telegram
 from flask import Flask, request
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 TOKEN = "8927826902:AAEi7UQgdBc4gWRIshDtLjRm6Hych15sAF4"
-ADMIN_CHAT_ID = "6395918397"  
+ADMIN_CHAT_ID = 6395918397
 
-bot = telegram.Bot(token=TOKEN)
 app = Flask(__name__)
+bot = Bot(token=TOKEN)
 
-def run_async(coro):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+# Telegram Application တည်ဆောက်ခြင်း
+ptb = Application.builder().token(TOKEN).updater(None).build()
 
-@app.route(f'/{TOKEN}', methods=['POST'])
-def respond():
-    try:
-        update = run_async(telegram.Update.de_json(request.get_json(force=True), bot))
-        
-        if update and update.message:
-            chat_id = update.message.chat.id
-            user = update.message.from_user
-            
-            username = f"@{user.username}" if user and user.username else (user.first_name if user else "Unknown")
-            text = update.message.text.strip() if update.message.text else ""
-            
-            if text.startswith('/start'):
-                parts = text.split(' ')
-                if len(parts) > 1:
-                    device_id = parts[1]
-                    admin_msg = f"🚨 *New Registration Request!*\n\n👤 *User:* {username}\n📱 *Device ID:* `{device_id}`"
-                    
-                    try:
-                        run_async(bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_msg, parse_mode="Markdown"))
-                    except Exception as e:
-                        print(f"Error sending to admin: {e}")
-                    
-                    run_async(bot.send_message(chat_id=chat_id, text="ကျေးဇူးတင်ပါတယ်။ သင့်ရဲ့ Device ID ကို Admin ထံ ပို့ပြီးပါပြီ။ အကောင့်ဖွင့်ပေးသည်အထိ ခဏစောင့်ပေးပါ။"))
-                else:
-                    run_async(bot.send_message(chat_id=chat_id, text="ကျေးဇူးပြု၍ App ထဲမှ Register ခလုတ်ကို နှိပ်ပါ။"))
-    except Exception as e:
-        print(f"Error handling update: {e}")
-                
-    return 'ok'
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    args = context.args
+    device_id = args[0] if args else "Not Provided"
+    
+    # Admin ဆီကို Device ID ပို့မည်
+    message = f"New Device Registration:\nUser ID: {user_id}\nDevice ID: {device_id}"
+    await bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
+    
+    #  ಬಳಕೆသူ ဆီကို ပြန်စာပို့မည်
+    await update.message.reply_text("Your Device ID has been registered successfully!")
 
-@app.route('/')
+ptb.add_handler(CommandHandler("start", start))
+
+@app.route(f"/{TOKEN}", methods=["POST"])
+def webhook():
+    if request.method == "POST":
+        update = Update.de_json(request.get_json(force=True), bot)
+        asyncio.run(ptb.process_update(update))
+    return "OK", 200
+
+@app.route("/", methods=["GET"])
 def index():
-    return 'Bot is running nicely!'
+    return "Bot is running nicely!", 200
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
+if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(ptb.initialize())
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
