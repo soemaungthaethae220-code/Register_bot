@@ -34,7 +34,7 @@ def main():
     server_thread = threading.Thread(target=run_web_server, daemon=True)
     server_thread.start()
 
-    print("Bot started with Admin Approval & 24h waiting system...")
+    print("Bot started with clean Admin Approval system...")
     offset = 0
     requests.get(f"{BASE_URL}/deleteWebhook?drop_pending_updates=true")
     
@@ -47,25 +47,27 @@ def main():
                 for result in data.get("result", []):
                     offset = result["update_id"] + 1
                     
-                    # 1. Callback Query (Admin က Button နှိပ်လိုက်တဲ့အခါ)
+                    # 1. Callback Query (Admin က Button နှိပ်တဲ့အခါ)
                     if "callback_query" in result:
                         callback = result["callback_query"]
                         callback_id = callback["id"]
                         cb_data = callback["data"]
-                        user_chat_id = cb_data.replace("approve_", "")
                         
-                        # User ဆီကို အတည်ပြုပြီးကြောင်း စာပို့မည်
-                        success_msg = (
-                            ">✅ **အတည်ပြုပြီးပါပြီ!**\n"
-                            ">သင်၏ Device ID ကို Admin မှ စစ်ဆေးအတည်ပြုပြီးဖြစ်၍ အောင်မြင်စွာ အသုံးပြုနိုင်ပါပြီ။"
-                        )
-                        send_message(user_chat_id, success_msg, parse_mode="Markdown")
-                        
-                        # Admin ရဲ့ Message ကို Button ဖြုတ်ပြီး အဆင်ပြေကြောင်း ပြောင်းမည်
-                        requests.post(f"{BASE_URL}/answerCallbackQuery", json={
-                            "callback_query_id": callback_id,
-                            "text": "User ကို အတည်ပြုချက် ပို့ပြီးပါပြီ!"
-                        })
+                        if cb_data.startswith("approve_"):
+                            user_chat_id = cb_data.replace("approve_", "")
+                            
+                            # User ဆီကို အတည်ပြုပြီးကြောင်း စာပို့မည်
+                            success_msg = (
+                                ">✅ **အတည်ပြုပြီးပါပြီ!**\n"
+                                ">သင့်ရဲ့ Device ID ကို Admin မှ စစ်ဆေးအတည်ပြုပြီးဖြစ်၍ အောင်မြင်စွာ အသုံးပြုနိုင်ပါပြီ။"
+                            )
+                            send_message(user_chat_id, success_msg, parse_mode="Markdown")
+                            
+                            # Admin ကို အသိပေးရန်
+                            requests.post(f"{BASE_URL}/answerCallbackQuery", json={
+                                "callback_query_id": callback_id,
+                                "text": "✅ User ကို အတည်ပြုစာ ပို့ပြီးပါပြီ!"
+                            })
                         continue
 
                     # 2. Normal Message (User ဘက်က ပို့လာတဲ့အခါ)
@@ -103,7 +105,7 @@ def main():
                             )
                             send_message(user_id, waiting_msg, parse_mode="Markdown")
                             
-                            # Admin ဆီကို Button နဲ့တကွ ပို့မည်
+                            # Admin ဆီသို့ Button နဲ့တကွ ပို့မည်
                             admin_msg = (
                                 ">🔔 **Device ID အတည်ပြုရန် တောင်းဆိုမှု:**\n"
                                 f">👤 User ID: `{user_id}`\n"
